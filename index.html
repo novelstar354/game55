@@ -2,190 +2,166 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>水面が揺れるアニメーション</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liquid Water Upgrade</title>
 <style>
-  body {
-    margin:0;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    height:100vh;
-    background:#e0f7fa;
-    font-family:sans-serif;
-  }
-  canvas {
-    border: 3px solid #00796b;
-    border-radius: 10px;
-    background:#fff;
-  }
-  button {
-    margin-top: 20px;
-    padding:10px 20px;
-    font-size:16px;
-    background:#00796b;
-    color:white;
-    border:none;
-    border-radius:5px;
-    cursor:pointer;
-  }
-  button:hover { background:#004d40; }
+body{
+  margin:0;
+  overflow:hidden;
+  background:radial-gradient(circle at center,#081826,#000814);
+}
+canvas{display:block;}
+button{
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  padding:10px 20px;
+  border:none;
+  border-radius:8px;
+  background:#00cfff;
+  color:white;
+  font-size:16px;
+}
 </style>
 </head>
 <body>
 
-<h2>水面が揺れるリアル水シミュレーション</h2>
-<canvas id="canvas" width="300" height="300"></canvas>
-<button id="fillButton">水を注ぐ</button>
+<canvas id="c"></canvas>
+<button onclick="pouring=!pouring">水を出す / 止める</button>
 
 <script>
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const button = document.getElementById("fillButton");
+const canvas=document.getElementById("c");
+const ctx=canvas.getContext("2d");
 
-let particles = [];
-let gravity = 0.3;
-let maxParticles = 1500;
-let interval;
+let W,H;
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;}
+resize();addEventListener("resize",resize);
 
-// 水面用の簡易格子
-const cols = 60;
-const waterSurface = new Array(cols).fill(canvas.height);
-const velocities = new Array(cols).fill(0);
-const tension = 0.02;
-const damping = 0.04;
+const container={
+  x:W/2-120,
+  y:H/2-180,
+  w:240,
+  h:360
+};
 
-// 容器の形
-function containerFloor(x){
-  const leftSlope = 0.2;
-  const rightSlope = 0.8;
-  const bottom = canvas.height;
-  const slopeWidth = canvas.width/2;
-  if(x < slopeWidth) return bottom - leftSlope * (slopeWidth - x);
-  else return bottom - rightSlope * (x - slopeWidth);
-}
+let particles=[];
+let pouring=false;
 
-// 粒子作成
-function createParticle() {
-  if(particles.length >= maxParticles) return;
-  particles.push({
-    x: canvas.width/2 + (Math.random()*20-10),
-    y: 0,
-    vx: Math.random()*1-0.5,
-    vy: 0,
-    radius: Math.random()*2+2,
-    alpha: Math.random()*0.5 + 0.5
-  });
-}
+class Particle{
+  constructor(x,y){
+    this.x=x;
+    this.y=y;
+    this.vx=(Math.random()-.5)*0.5;
+    this.vy=0;
+    this.r=4;
+  }
 
-// 粒子更新（重力＋底での跳ね返り＋水面との衝突）
-function updateParticles() {
-  for(let p of particles){
-    p.vy += gravity;
-    p.y += p.vy;
-    p.x += p.vx;
+  update(){
+    this.vy+=0.2;
 
-    // 壁で跳ね返る
-    if(p.x < p.radius) { p.x = p.radius; p.vx *= -0.3; }
-    if(p.x > canvas.width - p.radius) { p.x = canvas.width - p.radius; p.vx *= -0.3; }
+    // 粘性（減速）
+    this.vx*=0.99;
+    this.vy*=0.995;
 
-    // 容器底で止まる
-    let floorY = containerFloor(p.x) - p.radius;
-    if(p.y > floorY){
-      p.y = floorY;
-      p.vy *= -0.2;
-      p.vx *= 0.8;
-    }
+    this.x+=this.vx;
+    this.y+=this.vy;
 
-    // 水面との衝突
-    const colIndex = Math.floor(p.x / canvas.width * cols);
-    if(p.y > waterSurface[colIndex] - p.radius){
-      waterSurface[colIndex] -= 1; // 水面を押し上げる
-      velocities[colIndex] += p.vy * 0.1; 
-      p.vy *= -0.3; // 跳ね返り
+    // 壁
+    if(this.x<container.x){this.x=container.x;this.vx*=-0.3;}
+    if(this.x>container.x+container.w){this.x=container.x+container.w;this.vx*=-0.3;}
+    if(this.y>container.y+container.h){
+      this.y=container.y+container.h;
+      this.vy*=-0.2;
     }
   }
 }
 
-// 水面の揺れ計算
-function updateWaterSurface() {
-  // 波の伝播
-  const spread = 0.25;
-  const leftDeltas = new Array(cols).fill(0);
-  const rightDeltas = new Array(cols).fill(0);
-  for(let i=0;i<cols;i++){
-    velocities[i] += (canvas.height - waterSurface[i]) * tension;
-    velocities[i] *= (1 - damping);
+function updatePhysics(){
+
+  if(pouring){
+    for(let i=0;i<5;i++){
+      particles.push(new Particle(W/2,container.y-20));
+    }
   }
-  for(let j=0;j<8;j++){ // 複数回で伝播
-    for(let i=0;i<cols;i++){
-      if(i>0){
-        leftDeltas[i] = spread * (waterSurface[i] - waterSurface[i-1]);
-        velocities[i-1] += leftDeltas[i];
+
+  // 🔥 液体らしさの核心：粒子間相互作用
+  for(let i=0;i<particles.length;i++){
+    for(let j=i+1;j<particles.length;j++){
+      let a=particles[i];
+      let b=particles[j];
+
+      let dx=b.x-a.x;
+      let dy=b.y-a.y;
+      let dist=Math.sqrt(dx*dx+dy*dy);
+
+      let range=20;
+
+      if(dist<range && dist>0){
+
+        let nx=dx/dist;
+        let ny=dy/dist;
+
+        // 圧力（近すぎると反発）
+        let pressure=(range-dist)/range*0.15;
+        a.vx-=nx*pressure;
+        a.vy-=ny*pressure;
+        b.vx+=nx*pressure;
+        b.vy+=ny*pressure;
+
+        // 表面張力（少し引き合う）
+        let cohesion=0.002;
+        a.vx+=nx*cohesion;
+        a.vy+=ny*cohesion;
+        b.vx-=nx*cohesion;
+        b.vy-=ny*cohesion;
+
+        // 粘性（速度平均化）
+        let viscosity=0.05;
+        let dvx=b.vx-a.vx;
+        let dvy=b.vy-a.vy;
+        a.vx+=dvx*viscosity;
+        a.vy+=dvy*viscosity;
+        b.vx-=dvx*viscosity;
+        b.vy-=dvy*viscosity;
       }
-      if(i<cols-1){
-        rightDeltas[i] = spread * (waterSurface[i] - waterSurface[i+1]);
-        velocities[i+1] += rightDeltas[i];
-      }
-    }
-    for(let i=0;i<cols;i++){
-      waterSurface[i] += velocities[i];
     }
   }
+
+  particles.forEach(p=>p.update());
 }
 
-// 描画
-function draw() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+function draw(){
 
-  // 容器描画
-  ctx.strokeStyle = "#00796b";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, containerFloor(0));
-  for(let x=0; x<=canvas.width; x++){
-    ctx.lineTo(x, containerFloor(x));
-  }
-  ctx.stroke();
+  ctx.clearRect(0,0,W,H);
 
-  // 粒子描画
-  for(let p of particles){
-    ctx.fillStyle = `rgba(41,182,246,${p.alpha})`;
+  // 容器
+  ctx.strokeStyle="#aaa";
+  ctx.lineWidth=6;
+  ctx.strokeRect(container.x,container.y,container.w,container.h);
+
+  // 🔥 ぼかし合成で水を一体化
+  ctx.globalCompositeOperation="lighter";
+  ctx.shadowBlur=20;
+  ctx.shadowColor="rgba(0,180,255,0.8)";
+  ctx.fillStyle="rgba(0,180,255,0.4)";
+
+  particles.forEach(p=>{
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
     ctx.fill();
-  }
+  });
 
-  // 水面描画
-  ctx.fillStyle = "rgba(41,182,246,0.5)";
-  ctx.beginPath();
-  ctx.moveTo(0, canvas.height);
-  ctx.lineTo(0, waterSurface[0]);
-  for(let i=1;i<cols;i++){
-    ctx.lineTo(i/canvas.width*canvas.width, waterSurface[i]);
-  }
-  ctx.lineTo(canvas.width, canvas.height);
-  ctx.closePath();
-  ctx.fill();
+  ctx.globalCompositeOperation="source-over";
+  ctx.shadowBlur=0;
 }
 
-// アニメーションループ
-function animate() {
-  updateParticles();
-  updateWaterSurface();
+function loop(){
+  updatePhysics();
   draw();
-  requestAnimationFrame(animate);
+  requestAnimationFrame(loop);
 }
-
-// ボタン長押しで水注入
-button.addEventListener("mousedown", function(){
-  interval = setInterval(createParticle, 10);
-});
-button.addEventListener("mouseup", function(){ clearInterval(interval); });
-button.addEventListener("mouseleave", function(){ clearInterval(interval); });
-
-animate();
+loop();
 </script>
 
 </body>
