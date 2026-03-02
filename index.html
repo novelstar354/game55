@@ -2,167 +2,405 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Liquid Water Upgrade</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>HEAVEN & EARTH Ω - Civilization</title>
+<link rel="icon" href="https://imgs.search.brave4u7jddbv7cyviptqjc7jusxh72uik7zt6adtckl5f4nwy2v72qd.onion/G0ee6Xa-8tcYmMz56IFMGWw19aeAQL6JY4Onbnb33wE/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly90aHVt/Yi5hYy1pbGx1c3Qu/Y29tLzhhLzhhNGU5/NjMwMmU3MWRiZDk3/ZjE5MjFhMjYzZmE2/MGI4X3QuanBlZw" sizes="16×16" type="image/png" /> 
 <style>
-body{
-  margin:0;
-  overflow:hidden;
-  background:radial-gradient(circle at center,#081826,#000814);
-}
-canvas{display:block;}
-button{
-  position:fixed;
-  bottom:20px;
-  left:50%;
-  transform:translateX(-50%);
-  padding:10px 20px;
-  border:none;
-  border-radius:8px;
-  background:#00cfff;
-  color:white;
-  font-size:16px;
-}
+body{margin:0;background:#050510;overflow:hidden;display:flex;justify-content:center;align-items:center;height:100vh;color:white;font-family:sans-serif;user-select:none;}
+#ui{position:absolute;top:10px;left:10px;background:#0a0a2a;padding:10px;box-shadow:0 0 20px cyan;}
+canvas{background:#070720;box-shadow:0 0 40px cyan;}
 </style>
 </head>
 <body>
-
-<canvas id="c"></canvas>
-<button onclick="pouring=!pouring">水を出す / 止める</button>
-
+    <div>
+<div id="restartBtn" style="
+  position:absolute;top:10px;right:10px;
+  background:#ff0033;color:white;padding:8px 12px;
+  border:none;border-radius:6px;font-weight:bold;
+  cursor:pointer;box-shadow:0 0 15px #ff0033;
+  z-index:10;
+">RESTART</div>
+<div id="pauseBtn" style="
+  position:absolute;top:50px;right:10px;
+  background:#00ffff;color:#000;padding:8px 12px;
+  border:none;border-radius:6px;font-weight:bold;
+  cursor:pointer;box-shadow:0 0 15px #00ffff;
+  z-index:10;
+">PAUSE</div>
+</div>
+<div id="ui">
+Score: <span id="score">0</span><br>
+Lines: <span id="lines">0</span><br>
+Combo: <span id="combo">0</span><br>
+Civilization: <span id="civil">0</span><br>
+Level: <span id="level">1</span>
+</div>
+<canvas id="game"></canvas>
 <script>
-const canvas=document.getElementById("c");
+const COLS=16,ROWS=20,SUB=8;
+let CELL,SIZE,P_COLS,P_ROWS;
+let grid=[],current,nextPiece;
+let score=0,lines=0,combo=0,civilizationScore=0,level=1;
+let paused=false,gameOver=false;
+let holdPiece=null,canHold=true;
+let messageTimer=0,messageText="";
+let counter=0,effects=[];
+const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 
-let W,H;
-function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;}
-resize();addEventListener("resize",resize);
-
-const container={
-  x:W/2-120,
-  y:H/2-180,
-  w:240,
-  h:360
+const COLORS={
+  yellow:"#ffee00",cyan:"#00eaff",magenta:"#ff00ff",red:"#ff0033",lime:"#00ff66",orange:"#ff8800",
+  plant:"#00ff66",city:"#ff8800"
 };
+const SHAPES=[
+ [[1,1,1,1]],[[1,1],[1,1]],[[0,1,0],[1,1,1]]
+];
 
-let particles=[];
-let pouring=false;
+function resize(){const scale=Math.min(window.innerHeight/22,window.innerWidth/16);CELL=Math.floor(scale);SIZE=CELL/SUB;canvas.width=CELL*COLS;canvas.height=CELL*ROWS;P_COLS=COLS*SUB;P_ROWS=ROWS*SUB;}
+window.addEventListener("resize",resize);resize();
 
-class Particle{
-  constructor(x,y){
-    this.x=x;
-    this.y=y;
-    this.vx=(Math.random()-.5)*0.5;
-    this.vy=0;
-    this.r=4;
-  }
+// ===============================
+// 状態保存・復元
+// ===============================
 
-  update(){
-    this.vy+=0.2;
+function saveState(){localStorage.setItem("heavenEarthState1",JSON.stringify({grid,score,lines,combo,civilizationScore,level}));}
+function loadState(){let s=localStorage.getItem("heavenEarthState1");if(s){let obj=JSON.parse(s);grid=obj.grid;score=obj.score;lines=obj.lines;combo=obj.combo;civilizationScore=obj.civilizationScore;level=obj.level;updateUI();}}
 
-    // 粘性（減速）
-    this.vx*=0.99;
-    this.vy*=0.995;
+// ===============================
+// 初期化
+// ===============================
+function init(){grid=[];for(let y=0;y<P_ROWS;y++){grid[y]=[];for(let x=0;x<P_COLS;x++) grid[y][x]=null;}score=0;lines=0;combo=0;civilizationScore=0;level=1;holdPiece=null;nextPiece=null;canHold=true;updateUI();loadState();newPiece();}
 
-    this.x+=this.vx;
-    this.y+=this.vy;
+// ===============================
+// ブロック生成
+// ===============================
+function randomPiece(){return{shape:JSON.parse(JSON.stringify(SHAPES[Math.floor(Math.random()*SHAPES.length)])),x:3,y:0,color:Object.values(COLORS)[Math.floor(Math.random()*6)]};}
+function newPiece(){
+  current = nextPiece || randomPiece();
+  nextPiece = randomPiece();
+  canHold = true;
+  current.x = Math.floor(COLS/2 - current.shape[0].length/2);
+  current.y = 0;
+}
 
-    // 壁
-    if(this.x<container.x){this.x=container.x;this.vx*=-0.3;}
-    if(this.x>container.x+container.w){this.x=container.x+container.w;this.vx*=-0.3;}
-    if(this.y>container.y+container.h){
-      this.y=container.y+container.h;
-      this.vy*=-0.2;
+// ===============================
+// 描画
+// ===============================
+function drawParticle(x,y,color){ctx.shadowBlur=6;ctx.shadowColor=color;ctx.fillStyle=color;ctx.fillRect(x*SIZE,y*SIZE,SIZE,SIZE);ctx.shadowBlur=0;}
+function drawBlock(piece,py){piece.shape.forEach((row,dy)=>{row.forEach((v,dx)=>{if(v){ctx.shadowBlur=20;ctx.shadowColor=piece.color;ctx.fillStyle=piece.color;ctx.fillRect((piece.x+dx)*CELL,(py+dy)*CELL,CELL,CELL);ctx.shadowBlur=0;}});});}
+
+// ===============================
+// 文明演出
+// ===============================
+function applyCivilizationEffects(){
+  if(civilizationScore<=20) canvas.style.background="#050510";
+  else if(civilizationScore<=50){canvas.style.background="#102020";}
+  else if(civilizationScore<=100){canvas.style.background="#201010";}
+  else if(civilizationScore<=200){canvas.style.background="#304050";}
+  else{canvas.style.background="#5060a0";}
+}
+
+// ===============================
+// 災害
+// ===============================
+function triggerDisaster(){
+  let disasterRate = 0.002 + level*0.001; 
+  if(Math.random()<disasterRate){
+    let x=Math.floor(Math.random()*P_COLS);
+    for(let y=0;y<P_ROWS;y++){
+      if(grid[y][x]) grid[y][x]=null;
+      effects.push({x:x,y:y,life:25,color:"#ff0000"});
     }
+    civilizationScore=Math.max(0,civilizationScore-10);
+    messageText="DISASTER!";messageTimer=60;updateUI();
   }
 }
 
-function updatePhysics(){
+// ===============================
+// draw()統合
+// ===============================
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  applyCivilizationEffects();
+  triggerDisaster();
+  for(let y=0;y<P_ROWS;y++){for(let x=0;x<P_COLS;x++){if(grid[y][x]) drawParticle(x,y,grid[y][x]);}}
+  if(current){let oy=current.y;while(true){current.y++;if(collide()){current.y--;break;}}let gy=current.y;current.y=oy;ctx.globalAlpha=0.25;drawBlock(current,gy);ctx.globalAlpha=1;drawBlock(current,current.y);}
+  if(nextPiece){ctx.font="16px sans-serif";ctx.fillStyle="#00ffff";ctx.fillText("NEXT",canvas.width-80,20);
+    nextPiece.shape.forEach((row,dy)=>{row.forEach((v,dx)=>{if(v){ctx.shadowBlur=10;ctx.shadowColor=nextPiece.color;ctx.fillStyle=nextPiece.color;ctx.fillRect(canvas.width-80+dx*15,30+dy*15,15,15);ctx.shadowBlur=0;}});});}
+  if(holdPiece){ctx.fillText("HOLD",10,20);
+    holdPiece.shape.forEach((row,dy)=>{row.forEach((v,dx)=>{if(v){ctx.shadowBlur=10;ctx.shadowColor=holdPiece.color;ctx.fillStyle=holdPiece.color;ctx.fillRect(10+dx*15,30+dy*15,15,15);ctx.shadowBlur=0;}});});}
+  if(messageTimer>0){ctx.font="bold 40px sans-serif";ctx.fillStyle="#00ffff";ctx.textAlign="center";ctx.fillText(messageText,canvas.width/2,canvas.height/2);messageTimer--;}
+  if(gameOver){ctx.fillStyle="rgba(0,0,0,0.8)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.font="bold 50px sans-serif";ctx.fillStyle="#ff0033";ctx.textAlign="center";ctx.fillText("GAME OVER",canvas.width/2,canvas.height/2);}
+  effects.forEach((e,i)=>{ctx.globalAlpha=e.life/20;ctx.fillStyle=e.color;ctx.shadowBlur=30;ctx.shadowColor=e.color;ctx.fillRect(e.x*SIZE,e.y*SIZE,SIZE,SIZE);ctx.shadowBlur=0;ctx.globalAlpha=1;e.life--;if(e.life<=0) effects.splice(i,1);});
+    if(paused){
+  ctx.fillStyle="rgba(0,0,0,0.7)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.font="bold 50px sans-serif";
+  ctx.fillStyle="#00ffff";
+  ctx.textAlign="center";
+  ctx.fillText("PAUSED",canvas.width/2,canvas.height/2);
+}
+}
 
-  if(pouring){
-    for(let i=0;i<5;i++){
-      particles.push(new Particle(W/2,container.y-20));
+// ===============================
+// UI更新
+// ===============================
+function updateUI(){
+  document.getElementById("score").textContent=score;
+  document.getElementById("lines").textContent=lines;
+  document.getElementById("combo").textContent=combo;
+  document.getElementById("civil").textContent=civilizationScore;
+  document.getElementById("level").textContent=level;
+}
+
+// ===============================
+// 衝突判定
+// ===============================
+function collide(){
+  for(let y=0;y<current.shape.length;y++){
+    for(let x=0;x<current.shape[y].length;x++){
+      if(current.shape[y][x]){
+        let nx=current.x+x;
+        let ny=current.y+y;
+        if(nx<0||nx>=COLS||ny>=ROWS) return true;
+        for(let sy=0;sy<SUB;sy++){
+          for(let sx=0;sx<SUB;sx++){
+            if(grid[ny*SUB+sy]?.[nx*SUB+sx]) return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// ===============================
+// ブロック統合
+// ===============================
+function merge(){
+  current.shape.forEach((row,dy)=>{
+    row.forEach((v,dx)=>{
+      if(v){
+        for(let sy=0;sy<SUB;sy++){
+          for(let sx=0;sx<SUB;sx++){
+            grid[(current.y+dy)*SUB+sy][(current.x+dx)*SUB+sx]=current.color;
+          }
+        }
+      }
+    });
+  });
+}
+
+// ===============================
+// ブロック落下（連打防止）
+// ===============================
+let dropping=false;
+function drop(){
+  if(!current || dropping) return;
+  dropping=true;
+  current.y++;
+  if(collide()){
+    current.y--;
+    merge();
+    clearCheck();
+    newPiece();
+    if(collide()) gameOver=true;
+    saveState();
+  }
+  dropping=false;
+}
+
+// ===============================
+// 回転処理
+// ===============================
+function rotate(dir){
+  if(!current) return;
+  let m=current.shape;
+  let r=m[0].map((_,i)=>m.map(row=>row[i]));
+  if(dir>0) r.forEach(row=>row.reverse());
+  else r.reverse();
+  let ox=current.x, oy=current.y;
+  current.shape = r;
+  for(let i=-1;i<=1;i++){
+    current.x=ox+i;
+    if(!collide()) return;
+  }
+  current.shape = m;
+  current.x = ox;
+  current.y = oy;
+}
+
+// ===============================
+// ホールド
+// ===============================
+function hold(){
+  if(!canHold || !current) return;
+  if(!holdPiece){
+    holdPiece={shape:JSON.parse(JSON.stringify(current.shape)),color:current.color};
+    newPiece();
+  }else{
+    let temp={shape:current.shape,color:current.color};
+    current.shape=JSON.parse(JSON.stringify(holdPiece.shape));
+    current.color=holdPiece.color;
+    current.x=3;current.y=0;
+    holdPiece=temp;
+  }
+  canHold=false;
+}
+
+// ===============================
+// 粒子物理・文明反応（改良水）
+// ===============================
+function updatePhysics(){
+  const updated = new Set();
+  for(let y=P_ROWS-2;y>=0;y--){
+    for(let x=0;x<P_COLS;x++){
+      const key=x+","+y;
+      if(updated.has(key)) continue;
+      let c=grid[y][x];
+      if(!c) continue;
+
+      if(c===COLORS.cyan){ // 水
+        let moved=false;
+        if(!grid[y+1]?.[x]){grid[y+1][x]=c;grid[y][x]=null;updated.add(x+","+(y+1)); moved=true;}
+        if(!moved){
+          let dirs=[-1,1]; dirs.sort(()=>Math.random()-0.5);
+          for(let dir of dirs){
+            if(!grid[y+1]?.[x+dir]){grid[y+1][x+dir]=c;grid[y][x]=null;updated.add((x+dir)+","+(y+1)); break;}
+            else if(!grid[y]?.[x+dir]){grid[y][x+dir]=c;grid[y][x]=null;updated.add((x+dir)+","+y); break;}
+          }
+        }
+        continue;
+      }
+
+      if(!grid[y+1]?.[x]){grid[y+1][x]=c;grid[y][x]=null;updated.add(x+","+(y+1));}
+      else{let dir=Math.random()<0.5?-1:1;if(!grid[y+1]?.[x+dir]){grid[y+1][x+dir]=c;grid[y][x]=null;updated.add((x+dir)+","+(y+1));}}
     }
   }
 
-  // 🔥 液体らしさの核心：粒子間相互作用
-  for(let i=0;i<particles.length;i++){
-    for(let j=i+1;j<particles.length;j++){
-      let a=particles[i];
-      let b=particles[j];
-
-      let dx=b.x-a.x;
-      let dy=b.y-a.y;
-      let dist=Math.sqrt(dx*dx+dy*dy);
-
-      let range=20;
-
-      if(dist<range && dist>0){
-
-        let nx=dx/dist;
-        let ny=dy/dist;
-
-        // 圧力（近すぎると反発）
-        let pressure=(range-dist)/range*0.15;
-        a.vx-=nx*pressure;
-        a.vy-=ny*pressure;
-        b.vx+=nx*pressure;
-        b.vy+=ny*pressure;
-
-        // 表面張力（少し引き合う）
-        let cohesion=0.002;
-        a.vx+=nx*cohesion;
-        a.vy+=ny*cohesion;
-        b.vx-=nx*cohesion;
-        b.vy-=ny*cohesion;
-
-        // 粘性（速度平均化）
-        let viscosity=0.05;
-        let dvx=b.vx-a.vx;
-        let dvy=b.vy-a.vy;
-        a.vx+=dvx*viscosity;
-        a.vy+=dvy*viscosity;
-        b.vx-=dvx*viscosity;
-        b.vy-=dvy*viscosity;
+  // 化学反応
+  for(let y=0;y<P_ROWS;y++){
+    for(let x=0;x<P_COLS;x++){
+      let c=grid[y][x];if(!c) continue;
+      let neighbors=[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
+      for(let [nx,ny] of neighbors){
+        if(nx<0||nx>=P_COLS||ny<0||ny>=P_ROWS) continue;
+        let n=grid[ny][nx];if(!n) continue;
+        if((c===COLORS.cyan && n===COLORS.red) || (c===COLORS.red && n===COLORS.cyan)){
+          grid[y][x]=null;grid[ny][nx]=null;effects.push({x:x,y:y,life:20,color:"#ffffff"});effects.push({x:nx,y:ny,life:20,color:"#ffffff"});
+          civilizationScore+=5;
+        }
+        if((c===COLORS.red && n===COLORS.yellow) || (c===COLORS.yellow && n===COLORS.red)){
+          grid[y][x]=null;grid[ny][nx]=null;effects.push({x:x,y:y,life:25,color:"#ff8800"});effects.push({x:nx,y:ny,life:25,color:"#ff8800"});
+          civilizationScore+=3;
+        }
       }
     }
   }
 
-  particles.forEach(p=>p.update());
+  level = Math.floor(civilizationScore/20)+1;
 }
 
-function draw(){
+// ===============================
+// ライン消去
+// ===============================
+function clearCheck(){
+  let cleared=false;
+  for(let by=0;by<ROWS;by++){
+    let streak=0,color=null;
+    for(let bx=0;bx<=COLS;bx++){
+      let c=bx<COLS?grid[by*SUB]?.[bx*SUB]:null;
+      if(c && c===color) streak++;
+      else{
+        if(streak>=5){
+          for(let i=1;i<=streak;i++){
+            for(let sy=0;sy<SUB;sy++){
+              for(let sx=0;sx<SUB;sx++){
+                effects.push({x:(bx-i)*SUB+sx,y:by*SUB+sy,life:20,color:color});
+                grid[by*SUB+sy][(bx-i)*SUB+sx]=null;
+              }
+            }
+          }
+          cleared=true;
+        }
+        color=c;streak=c?1:0;
+      }
+    }
+  }
 
-  ctx.clearRect(0,0,W,H);
-
-  // 容器
-  ctx.strokeStyle="#aaa";
-  ctx.lineWidth=6;
-  ctx.strokeRect(container.x,container.y,container.w,container.h);
-
-  // 🔥 ぼかし合成で水を一体化
-  ctx.globalCompositeOperation="lighter";
-  ctx.shadowBlur=20;
-  ctx.shadowColor="rgba(0,180,255,0.8)";
-  ctx.fillStyle="rgba(0,180,255,0.4)";
-
-  particles.forEach(p=>{
-    ctx.beginPath();
-    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-    ctx.fill();
-  });
-
-  ctx.globalCompositeOperation="source-over";
-  ctx.shadowBlur=0;
+  if(cleared){combo++;lines++;score+=500*combo*combo;civilizationScore+=2;messageText=combo>=3?"COMBO x"+combo+" !!!":"HORIZONTAL 5";messageTimer=60;updateUI();saveState();}
+  else combo=0;
 }
 
+// ===============================
+// 上部ライン沈下
+// ===============================
+function sinkBlocks(){
+  const threshold=5;
+  for(let y=0;y<threshold*SUB;y++){
+    for(let x=0;x<P_COLS;x++){
+      if(grid[y][x] && !grid[y+1]?.[x]){grid[y+1][x]=grid[y][x];grid[y][x]=null;}
+    }
+  }
+}
+
+// ===============================
+// 操作（キーボード＆タッチ）
+// ===============================
+window.addEventListener("keydown",e=>{
+  if(gameOver) return;
+  if(e.key==="ArrowLeft") {current.x--; if(collide()) current.x++; }
+  if(e.key==="ArrowRight"){current.x++; if(collide()) current.x--; }
+  if(e.key==="ArrowDown") drop();
+  if(e.key==="ArrowUp") rotate(1);
+  if(e.key===" ") {while(!collide()){current.y++;}current.y--; drop();}
+  if(e.key==="c") hold();
+    if(e.key.toLowerCase() === "r") init(); // Rキーでリスタート
+});
+
+// タッチ操作
+let startX, startY;
+canvas.addEventListener("touchstart",e=>{const t=e.touches[0]; startX=t.clientX; startY=t.clientY;});
+canvas.addEventListener("touchend",e=>{
+  const t=e.changedTouches[0];
+  const dx=t.clientX-startX, dy=t.clientY-startY;
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(dx>10){current.x++; if(collide()) current.x--;}
+    else if(dx<-10){current.x--; if(collide()) current.x++;}
+  }else{
+    if(dy>10) drop();
+    else if(dy<-10) rotate(1);
+  }
+});
+// ポーズ切り替え
+function togglePause() {
+  paused = !paused;
+  if(paused) messageText = "PAUSED", messageTimer = 60;
+}
+
+// キーボード操作
+document.addEventListener("keydown", e => {
+  if(e.key === "p" || e.key === "P") togglePause();
+});
+
+// ボタン操作
+document.getElementById("pauseBtn").addEventListener("click", togglePause);
+// ===============================
+// メインループ
+// ===============================
 function loop(){
-  updatePhysics();
-  draw();
+  if(!paused){
+    counter++;
+    if(counter>35){drop();counter=0;}
+    updatePhysics();
+    sinkBlocks();
+    draw();
+  }
   requestAnimationFrame(loop);
 }
+document.getElementById("restartBtn").addEventListener("click", init);
+init();
 loop();
 </script>
-
 </body>
 </html>
