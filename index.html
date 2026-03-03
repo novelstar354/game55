@@ -3,159 +3,249 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>HEAVEN & EARTH Ω - Civilization</title>
-<link rel="icon" href="https://imgs.search.brave4u7jddbv7cyviptqjc7jusxh72uik7zt6adtckl5f4nwy2v72qd.onion/G0ee6Xa-8tcYmMz56IFMGWw19aeAQL6JY4Onbnb33wE/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly90aHVt/Yi5hYy1pbGx1c3Qu/Y29tLzhhLzhhNGU5/NjMwMmU3MWRiZDk3/ZjE5MjFhMjYzZmE2/MGI4X3QuanBlZw" sizes="16×16" type="image/png" /> 
+<title>SAND BLOCKS  WORLD EDITION</title>
+<link rel="icon" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQKobz_PUtr0IcU0f4WDBQJ4Q55yVhFOV0nUQ&s" sizes="16×16" type="image/png" /> 
 <style>
-body{margin:0;background:#050510;overflow:hidden;display:flex;justify-content:center;align-items:center;height:100vh;color:white;font-family:sans-serif;user-select:none;}
-#ui{position:absolute;top:10px;left:10px;background:#0a0a2a;padding:10px;box-shadow:0 0 20px cyan;}
-canvas{background:#070720;box-shadow:0 0 40px cyan;}
+body{
+  margin:0;
+  background:#050510;
+  overflow:hidden;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  color:white;
+  font-family:sans-serif;
+  user-select:none;
+}
+#ui{
+  position:absolute;
+  top:10px;
+  left:10px;
+  background:#0a0a2a;
+  padding:10px;
+  box-shadow:0 0 20px cyan;
+}
+canvas{
+  background:#070720;
+  box-shadow:0 0 40px cyan;
+}
 </style>
 </head>
 <body>
-    <div>
-<div id="restartBtn" style="
-  position:absolute;top:10px;right:10px;
-  background:#ff0033;color:white;padding:8px 12px;
-  border:none;border-radius:6px;font-weight:bold;
-  cursor:pointer;box-shadow:0 0 15px #ff0033;
-  z-index:10;
-">RESTART</div>
-<div id="pauseBtn" style="
-  position:absolute;top:50px;right:10px;
-  background:#00ffff;color:#000;padding:8px 12px;
-  border:none;border-radius:6px;font-weight:bold;
-  cursor:pointer;box-shadow:0 0 15px #00ffff;
-  z-index:10;
-">PAUSE</div>
-</div>
+
 <div id="ui">
 Score: <span id="score">0</span><br>
 Lines: <span id="lines">0</span><br>
 Combo: <span id="combo">0</span><br>
-Civilization: <span id="civil">0</span><br>
-Level: <span id="level">1</span>
 </div>
+
 <canvas id="game"></canvas>
+
 <script>
-const COLS=16,ROWS=20,SUB=8;
+const COLS=10, ROWS=20;
+const SUB=8; // ★ 超微粒子化
+
+let temp = [];
 let CELL,SIZE,P_COLS,P_ROWS;
 let grid=[],current,nextPiece;
-let score=0,lines=0,combo=0,civilizationScore=0,level=1;
+let score=0,lines=0,combo=0;
 let paused=false,gameOver=false;
 let holdPiece=null,canHold=true;
 let messageTimer=0,messageText="";
-let counter=0,effects=[];
+let counter=0;
+let effects=[];
+
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 
-const COLORS={
-  yellow:"#ffee00",cyan:"#00eaff",magenta:"#ff00ff",red:"#ff0033",lime:"#00ff66",orange:"#ff8800",
-  plant:"#00ff66",city:"#ff8800"
-};
+const COLORS=["#ffee00","#00eaff","#ff00ff","#ff0033","#00ff66","#ff8800"];
 const SHAPES=[
- [[1,1,1,1]],[[1,1],[1,1]],[[0,1,0],[1,1,1]]
+ [[1,1,1,1]],
+ [[1,1],[1,1]],
+ [[0,1,0],[1,1,1]]
 ];
 
-function resize(){const scale=Math.min(window.innerHeight/22,window.innerWidth/16);CELL=Math.floor(scale);SIZE=CELL/SUB;canvas.width=CELL*COLS;canvas.height=CELL*ROWS;P_COLS=COLS*SUB;P_ROWS=ROWS*SUB;}
-window.addEventListener("resize",resize);resize();
+function resize(){
+  const scale=Math.min(window.innerHeight/22,window.innerWidth/14);
+  CELL=Math.floor(scale);
+  SIZE=CELL/SUB;
+  canvas.width=CELL*COLS;
+  canvas.height=CELL*ROWS;
+  P_COLS=COLS*SUB;
+  P_ROWS=ROWS*SUB;
+}
+window.addEventListener("resize",resize);
+resize();
 
-// ===============================
-// 状態保存・復元
-// ===============================
+function init(){
+  grid=[];
+  for(let y=0;y<P_ROWS;y++){
+    grid[y]=[];
+    for(let x=0;x<P_COLS;x++) grid[y][x]=null;
+  }
 
-function saveState(){localStorage.setItem("heavenEarthState1",JSON.stringify({grid,score,lines,combo,civilizationScore,level}));}
-function loadState(){let s=localStorage.getItem("heavenEarthState1");if(s){let obj=JSON.parse(s);grid=obj.grid;score=obj.score;lines=obj.lines;combo=obj.combo;civilizationScore=obj.civilizationScore;level=obj.level;updateUI();}}
+  initTemp();   // ← これだけでOK
 
-// ===============================
-// 初期化
-// ===============================
-function init(){grid=[];for(let y=0;y<P_ROWS;y++){grid[y]=[];for(let x=0;x<P_COLS;x++) grid[y][x]=null;}score=0;lines=0;combo=0;civilizationScore=0;level=1;holdPiece=null;nextPiece=null;canHold=true;updateUI();loadState();newPiece();}
+  score=0;
+  lines=0;
+  combo=0;
+  holdPiece=null;
+  nextPiece=null;
+  canHold=true;
 
-// ===============================
-// ブロック生成
-// ===============================
-function randomPiece(){return{shape:JSON.parse(JSON.stringify(SHAPES[Math.floor(Math.random()*SHAPES.length)])),x:3,y:0,color:Object.values(COLORS)[Math.floor(Math.random()*6)]};}
-function newPiece(){
-  current = nextPiece || randomPiece();
-  nextPiece = randomPiece();
-  canHold = true;
-  current.x = Math.floor(COLS/2 - current.shape[0].length/2);
-  current.y = 0;
+  updateUI();
 }
 
-// ===============================
-// 描画
-// ===============================
-function drawParticle(x,y,color){ctx.shadowBlur=6;ctx.shadowColor=color;ctx.fillStyle=color;ctx.fillRect(x*SIZE,y*SIZE,SIZE,SIZE);ctx.shadowBlur=0;}
-function drawBlock(piece,py){piece.shape.forEach((row,dy)=>{row.forEach((v,dx)=>{if(v){ctx.shadowBlur=20;ctx.shadowColor=piece.color;ctx.fillStyle=piece.color;ctx.fillRect((piece.x+dx)*CELL,(py+dy)*CELL,CELL,CELL);ctx.shadowBlur=0;}});});}
-
-// ===============================
-// 文明演出
-// ===============================
-function applyCivilizationEffects(){
-  if(civilizationScore<=20) canvas.style.background="#050510";
-  else if(civilizationScore<=50){canvas.style.background="#102020";}
-  else if(civilizationScore<=100){canvas.style.background="#201010";}
-  else if(civilizationScore<=200){canvas.style.background="#304050";}
-  else{canvas.style.background="#5060a0";}
-}
-
-// ===============================
-// 災害
-// ===============================
-function triggerDisaster(){
-  let disasterRate = 0.002 + level*0.001; 
-  if(Math.random()<disasterRate){
-    let x=Math.floor(Math.random()*P_COLS);
-    for(let y=0;y<P_ROWS;y++){
-      if(grid[y][x]) grid[y][x]=null;
-      effects.push({x:x,y:y,life:25,color:"#ff0000"});
+function restart(){
+  grid=[];
+  for(let y=0;y<P_ROWS;y++){
+    grid[y]=[];
+    for(let x=0;x<P_COLS;x++){
+      grid[y][x]=0;
     }
-    civilizationScore=Math.max(0,civilizationScore-10);
-    messageText="DISASTER!";messageTimer=60;updateUI();
+  }
+
+  initTemp();  // ← ここに追加
+}
+function randomPiece(){
+  return{
+    shape:JSON.parse(JSON.stringify(SHAPES[Math.floor(Math.random()*SHAPES.length)])),
+    x:3,y:0,
+    color:COLORS[Math.floor(Math.random()*COLORS.length)]
+  };
+}
+function initTemp(){
+  temp=[];
+  for(let y=0;y<P_ROWS;y++){
+    temp[y]=[];
+    for(let x=0;x<P_COLS;x++){
+      temp[y][x]=0;
+    }
   }
 }
+function newPiece(){
+  current=nextPiece||randomPiece();
+  nextPiece=randomPiece();
+  canHold=true;
+}
 
-// ===============================
-// draw()統合
-// ===============================
+function drawParticle(x,y,color){
+  ctx.shadowBlur=6;
+  ctx.shadowColor=color;
+  ctx.fillStyle=color;
+  ctx.fillRect(x*SIZE,y*SIZE,SIZE,SIZE);
+  ctx.shadowBlur=0;
+}
+
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  applyCivilizationEffects();
-  triggerDisaster();
-  for(let y=0;y<P_ROWS;y++){for(let x=0;x<P_COLS;x++){if(grid[y][x]) drawParticle(x,y,grid[y][x]);}}
-  if(current){let oy=current.y;while(true){current.y++;if(collide()){current.y--;break;}}let gy=current.y;current.y=oy;ctx.globalAlpha=0.25;drawBlock(current,gy);ctx.globalAlpha=1;drawBlock(current,current.y);}
-  if(nextPiece){ctx.font="16px sans-serif";ctx.fillStyle="#00ffff";ctx.fillText("NEXT",canvas.width-80,20);
-    nextPiece.shape.forEach((row,dy)=>{row.forEach((v,dx)=>{if(v){ctx.shadowBlur=10;ctx.shadowColor=nextPiece.color;ctx.fillStyle=nextPiece.color;ctx.fillRect(canvas.width-80+dx*15,30+dy*15,15,15);ctx.shadowBlur=0;}});});}
-  if(holdPiece){ctx.fillText("HOLD",10,20);
-    holdPiece.shape.forEach((row,dy)=>{row.forEach((v,dx)=>{if(v){ctx.shadowBlur=10;ctx.shadowColor=holdPiece.color;ctx.fillStyle=holdPiece.color;ctx.fillRect(10+dx*15,30+dy*15,15,15);ctx.shadowBlur=0;}});});}
-  if(messageTimer>0){ctx.font="bold 40px sans-serif";ctx.fillStyle="#00ffff";ctx.textAlign="center";ctx.fillText(messageText,canvas.width/2,canvas.height/2);messageTimer--;}
-  if(gameOver){ctx.fillStyle="rgba(0,0,0,0.8)";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.font="bold 50px sans-serif";ctx.fillStyle="#ff0033";ctx.textAlign="center";ctx.fillText("GAME OVER",canvas.width/2,canvas.height/2);}
-  effects.forEach((e,i)=>{ctx.globalAlpha=e.life/20;ctx.fillStyle=e.color;ctx.shadowBlur=30;ctx.shadowColor=e.color;ctx.fillRect(e.x*SIZE,e.y*SIZE,SIZE,SIZE);ctx.shadowBlur=0;ctx.globalAlpha=1;e.life--;if(e.life<=0) effects.splice(i,1);});
-    if(paused){
-  ctx.fillStyle="rgba(0,0,0,0.7)";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.font="bold 50px sans-serif";
-  ctx.fillStyle="#00ffff";
-  ctx.textAlign="center";
-  ctx.fillText("PAUSED",canvas.width/2,canvas.height/2);
-}
+
+  // 粒子
+  for(let y=0;y<P_ROWS;y++){
+    for(let x=0;x<P_COLS;x++){
+      if(grid[y][x]) drawParticle(x,y,grid[y][x]);
+    }
+  }
+
+  // ゴースト
+  let oy=current.y;
+  while(true){
+    current.y++;
+    if(collide()){current.y--;break;}
+  }
+  let gy=current.y;
+  current.y=oy;
+
+  ctx.globalAlpha=0.25;
+  drawBlock(current,gy);
+  ctx.globalAlpha=1;
+
+  drawBlock(current,current.y);
+
+  // NEXT表示
+  if(nextPiece){
+    ctx.font="16px sans-serif";
+    ctx.fillStyle="#00ffff";
+    ctx.fillText("NEXT",canvas.width-80,20);
+
+    nextPiece.shape.forEach((row,dy)=>{
+      row.forEach((v,dx)=>{
+        if(v){
+          ctx.shadowBlur=10;
+          ctx.shadowColor=nextPiece.color;
+          ctx.fillStyle=nextPiece.color;
+          ctx.fillRect(
+            canvas.width-80+dx*15,
+            30+dy*15,
+            15,15
+          );
+          ctx.shadowBlur=0;
+        }
+      });
+    });
+  }
+
+  // HOLD
+  if(holdPiece){
+    ctx.fillText("HOLD",10,20);
+    holdPiece.shape.forEach((row,dy)=>{
+      row.forEach((v,dx)=>{
+        if(v){
+          ctx.shadowBlur=10;
+          ctx.shadowColor=holdPiece.color;
+          ctx.fillStyle=holdPiece.color;
+          ctx.fillRect(10+dx*15,30+dy*15,15,15);
+          ctx.shadowBlur=0;
+        }
+      });
+    });
+  }
+
+  // メッセージ
+  if(messageTimer>0){
+    ctx.font="bold 40px sans-serif";
+    ctx.fillStyle="#00ffff";
+    ctx.textAlign="center";
+    ctx.fillText(messageText,canvas.width/2,canvas.height/2);
+    messageTimer--;
+  }
+
+  if(gameOver){
+    ctx.fillStyle="rgba(0,0,0,0.8)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.font="bold 50px sans-serif";
+    ctx.fillStyle="#ff0033";
+    ctx.textAlign="center";
+    ctx.fillText("GAME OVER",canvas.width/2,canvas.height/2);
+  }
+    effects.forEach((e,i)=>{
+  ctx.globalAlpha = e.life/20;
+  ctx.fillStyle = e.color;
+  ctx.shadowBlur = 30;
+  ctx.shadowColor = e.color;
+  ctx.fillRect(e.x*SIZE,e.y*SIZE,10,10);
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  e.life--;
+  if(e.life<=0) effects.splice(i,1);
+});
 }
 
-// ===============================
-// UI更新
-// ===============================
-function updateUI(){
-  document.getElementById("score").textContent=score;
-  document.getElementById("lines").textContent=lines;
-  document.getElementById("combo").textContent=combo;
-  document.getElementById("civil").textContent=civilizationScore;
-  document.getElementById("level").textContent=level;
+function drawBlock(piece,py){
+  piece.shape.forEach((row,dy)=>{
+    row.forEach((v,dx)=>{
+      if(v){
+        ctx.shadowBlur=20;
+        ctx.shadowColor=piece.color;
+        ctx.fillStyle=piece.color;
+        ctx.fillRect((piece.x+dx)*CELL,(py+dy)*CELL,CELL,CELL);
+        ctx.shadowBlur=0;
+      }
+    });
+  });
 }
 
-// ===============================
-// 衝突判定
-// ===============================
 function collide(){
   for(let y=0;y<current.shape.length;y++){
     for(let x=0;x<current.shape[y].length;x++){
@@ -174,9 +264,6 @@ function collide(){
   return false;
 }
 
-// ===============================
-// ブロック統合
-// ===============================
 function merge(){
   current.shape.forEach((row,dy)=>{
     row.forEach((v,dx)=>{
@@ -191,13 +278,606 @@ function merge(){
   });
 }
 
+function updatePhysics() {
+
+  const updated = new Set();
+
+  // ===============================
+  // 粒子ごとの挙動
+  // ===============================
+  for (let y = P_ROWS - 2; y >= 0; y--) {
+    for (let x = 0; x < P_COLS; x++) {
+
+      const key = x + "," + y;
+      if (updated.has(key)) continue;
+
+      let c = grid[y][x];
+      if (!c) continue;
+
+      // 🟡 YELLOW 重量砂
+      if (c === "#ffee00") {
+        if (Math.random() < 0.35) {
+          if (!grid[y + 1]?.[x]) {
+            grid[y + 1][x] = c;
+            grid[y][x] = null;
+            updated.add(x + "," + (y + 1));
+            continue;
+          }
+        }
+        if (Math.random() < 0.15) {
+          let dir = Math.random() < 0.5 ? -1 : 1;
+          if (!grid[y + 1]?.[x + dir]) {
+            grid[y + 1][x + dir] = c;
+            grid[y][x] = null;
+            updated.add((x + dir) + "," + (y + 1));
+            continue;
+          }
+        }
+        continue;
+      }
+
+      // 🔵 CYAN 水（流体）
+      if (c === "#00eaff") {
+        if (!grid[y + 1]?.[x]) {
+          grid[y + 1][x] = c;
+          grid[y][x] = null;
+          updated.add(x + "," + (y + 1));
+          continue;
+        }
+        let dirs = [-1, 1];
+        dirs.sort(() => Math.random() - 0.5);
+        for (let dir of dirs) {
+          if (!grid[y + 1]?.[x + dir]) {
+            grid[y + 1][x + dir] = c;
+            grid[y][x] = null;
+            updated.add((x + dir) + "," + (y + 1));
+            break;
+          } else if (!grid[y]?.[x + dir]) {
+            grid[y][x + dir] = c;
+            grid[y][x] = null;
+            updated.add((x + dir) + "," + y);
+            break;
+          }
+        }
+        continue;
+      }
+
+      // 🟣 MAGENTA 反重力
+      if (c === "#ff00ff") {
+        if (y > 0 && !grid[y - 1]?.[x] && Math.random() < 0.2) {
+          grid[y - 1][x] = c;
+          grid[y][x] = null;
+          updated.add(x + "," + (y - 1));
+          continue;
+        }
+      }
+
+      // 🔴 RED マグマ
+      if (c === "#ff0033") {
+        if (Math.random() < 0.2) {
+          if (!grid[y + 1]?.[x]) {
+            grid[y + 1][x] = c;
+            grid[y][x] = null;
+            updated.add(x + "," + (y + 1));
+            continue;
+          }
+        }
+        let dirs = [-1, 1];
+        dirs.sort(() => Math.random() - 0.5);
+        for (let dir of dirs) {
+          if (!grid[y + 1]?.[x + dir] && Math.random() < 0.05) {
+            grid[y + 1][x + dir] = c;
+            grid[y][x] = null;
+            updated.add((x + dir) + "," + (y + 1));
+            break;
+          }
+        }
+        if (!grid[y + 1]?.[x] && Math.random() < 0.01) {
+          grid[y][x] = null;
+          effects.push({ x: x, y: y, life: 15, color: "#ff4400" });
+        }
+        continue;
+      }
+
+      // 🟠 ORANGE 弾性粒子
+      if (c === "#ff8800") {
+        if (Math.random() < 0.7) {
+          if (!grid[y + 1]?.[x]) {
+            grid[y + 1][x] = c;
+            grid[y][x] = null;
+            updated.add(x + "," + (y + 1));
+            continue;
+          } else {
+            let dir = Math.random() < 0.5 ? -1 : 1;
+            if (!grid[y]?.[x + dir]) {
+              grid[y][x + dir] = c;
+              grid[y][x] = null;
+              updated.add((x + dir) + "," + y);
+              continue;
+            }
+          }
+        }
+        continue;
+      }
+        // 🧊 結晶
+if (c === "#8844ff") {
+  if (Math.random() < 0.03 && !grid[y + 1]?.[x]) {
+    grid[y + 1][x] = c;
+    grid[y][x] = null;
+    updated.add(x + "," + (y + 1));
+  }
+  continue;
+}
+    // ⚫ 炭素
+if (c === "#222222") {
+  if (Math.random() < 0.2 && !grid[y + 1]?.[x]) {
+    grid[y + 1][x] = c;
+    grid[y][x] = null;
+    updated.add(x + "," + (y + 1));
+  }
+  continue;
+}
+    // 🧬 生命原質
+if (c === "#00ffaa") {
+
+  // 水隣接で増殖
+  let nearWater = false;
+  let dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (let [dx,dy] of dirs) {
+    if (grid[y+dy]?.[x+dx] === "#00eaff") {
+      nearWater = true;
+      break;
+    }
+  }
+
+  if (nearWater && Math.random() < 0.02) {
+    let dir = dirs[Math.floor(Math.random()*4)];
+    let nx = x + dir[0];
+    let ny = y + dir[1];
+    if (!grid[ny]?.[nx]) {
+      grid[ny][nx] = "#00ffaa";
+    }
+  }
+
+  if (Math.random() < 0.1 && !grid[y+1]?.[x]) {
+    grid[y+1][x] = c;
+    grid[y][x] = null;
+    updated.add(x + "," + (y + 1));
+  }
+
+  continue;
+}
+// 🧬 生命進化
+if (c === "#00ffaa") {
+
+  let waterNear=false;
+  let lifeCount=0;
+  let dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+
+  for(let [dx,dy] of dirs){
+    let nx=x+dx, ny=y+dy;
+    if(grid[ny]?.[nx]==="#00eaff") waterNear=true;
+    if(grid[ny]?.[nx]==="#00ffaa") lifeCount++;
+  }
+
+  // 多細胞化
+  if(waterNear && lifeCount>=2 && temp[y][x]>20 && temp[y][x]<80){
+    grid[y][x]="#00ff00";
+    continue;
+  }
+}
+// 🐾 動物誕生
+if(c==="#00ff00"){
+
+  if(Math.random()<0.01 && temp[y][x]>30 && temp[y][x]<90){
+    grid[y][x]="#ffffff";
+    effects.push({x,y,life:30,color:"#ffffff"});
+    continue;
+  }
+}
+// 🦁 捕食者進化
+if(c==="#ffffff"){
+
+  let foodNear=false;
+  let dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+
+  for(let [dx,dy] of dirs){
+    if(grid[y+dy]?.[x+dx]==="#00ff00") foodNear=true;
+  }
+
+  if(foodNear && Math.random()<0.005){
+    grid[y][x]="#ffaa00";
+    continue;
+  }
+}
+// 🦁 捕食者挙動
+if(c==="#ffaa00"){
+
+  let dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  let dir=dirs[Math.floor(Math.random()*4)];
+  let nx=x+dir[0], ny=y+dir[1];
+
+  if(grid[ny]?.[nx]==="#ffffff" || grid[ny]?.[nx]==="#00ff00"){
+    grid[ny][nx]="#ffaa00";
+    grid[y][x]=null;
+    effects.push({x:nx,y:ny,life:15,color:"#ffaa00"});
+  }
+}
+    // 🔥 爆熱体
+if (c === "#ff4444") {
+
+  if (Math.random() < 0.08) {
+    grid[y][x] = null;
+    effects.push({x,y,life:25,color:"#ff0000"});
+    continue;
+  }
+
+  let dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (let [dx,dy] of dirs) {
+    let nx = x+dx;
+    let ny = y+dy;
+    if (grid[ny]?.[nx] && grid[ny][nx] !== "#ff4444") {
+      grid[ny][nx] = "#ff0033";
+    }
+  }
+
+  continue;
+}
+
+      // 🟢 LIME 拡散体
+      if (c === "#00ff66") {
+        let dirs = [-1, 1];
+        let dir = dirs[Math.floor(Math.random() * 2)];
+        if (!grid[y + 1]?.[x + dir]) {
+          grid[y + 1][x + dir] = c;
+          grid[y][x] = null;
+          updated.add((x + dir) + "," + (y + 1));
+          continue;
+        }
+      }
+    if(c==="#aaffff"){
+  if(temp[y][x] > 5){
+    grid[y][x] = "#00eaff"; // 融解
+  }
+  continue;
+}
+
+      // 共通：砂の自然落下
+      if (!grid[y + 1]?.[x]) {
+        grid[y + 1][x] = c;
+        grid[y][x] = null;
+        updated.add(x + "," + (y + 1));
+      } else {
+        let dir = Math.random() < 0.5 ? -1 : 1;
+        if (!grid[y + 1]?.[x + dir]) {
+          grid[y + 1][x + dir] = c;
+          grid[y][x] = null;
+          updated.add((x + dir) + "," + (y + 1));
+        }
+      }
+    }
+  }
+
+  // ===============================
+  // 化学反応（拡張版）
+  // ===============================
+  for (let y = 0; y < P_ROWS; y++) {
+    for (let x = 0; x < P_COLS; x++) {
+      let c = grid[y][x];
+      if (!c) continue;
+
+      let neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+      for (let [nx, ny] of neighbors) {
+        if (nx < 0 || nx >= P_COLS || ny < 0 || ny >= P_ROWS) continue;
+        let n = grid[ny][nx];
+        if (!n) continue;
+
+        // 水 + 赤 = 蒸気
+        if ((c === "#00eaff" && n === "#ff0033") || (c === "#ff0033" && n === "#00eaff")) {
+          grid[y][x] = null;
+          grid[ny][nx] = null;
+          effects.push({ x: x, y: y, life: 20, color: "#ffffff" });
+          effects.push({ x: nx, y: ny, life: 20, color: "#ffffff" });
+        }
+        
+
+      
+        // 水 + オレンジ = 泡
+        if ((c === "#00eaff" && n === "#ff8800") || (c === "#ff8800" && n === "#00eaff")) {
+          [[0, 1], [1, 0], [0, -1], [-1, 0]].forEach(([dx, dy]) => {
+            let tx = x + dx, ty = y + dy;
+            if (tx >= 0 && tx < P_COLS && ty >= 0 && ty < P_ROWS && !grid[ty][tx]) {
+              grid[ty][tx] = "#00ffff";
+              effects.push({ x: tx, y: ty, life: 15, color: "#00ffff" });
+            }
+          });
+        }
+
+        // 赤 + 黄色 = 火花
+        if ((c === "#ff0033" && n === "#ffee00") || (c === "#ffee00" && n === "#ff0033")) {
+          grid[y][x] = null;
+          grid[ny][nx] = null;
+          effects.push({ x: x, y: y, life: 25, color: "#ff8800" });
+          effects.push({ x: nx, y: ny, life: 25, color: "#ff8800" });
+        }
+
+        // 紫 + 緑 = 蛍光化
+        if ((c === "#ff00ff" && n === "#00ff66") || (c === "#00ff66" && n === "#ff00ff")) {
+          grid[y][x] = "#00ff66";
+          grid[ny][nx] = "#00ff66";
+          effects.push({ x: x, y: y, life: 10, color: "#00ff66" });
+          effects.push({ x: nx, y: ny, life: 10, color: "#00ff66" });
+        }
+
+        // 水 + 紫 = フローラル
+        if ((c === "#00eaff" && n === "#ff00ff") || (c === "#ff00ff" && n === "#00eaff")) {
+          grid[y][x] = "#ff00ff";
+          grid[ny][nx] = "#ff00ff";
+          effects.push({ x: x, y: y, life: 15, color: "#ff00ff" });
+          effects.push({ x: nx, y: ny, life: 15, color: "#ff00ff" });
+        }
+
+        // 水 + 緑 = 泡拡散
+        if ((c === "#00eaff" && n === "#00ff66") || (c === "#00ff66" && n === "#00eaff")) {
+          [[0, 1], [1, 0], [0, -1], [-1, 0]].forEach(([dx, dy]) => {
+            let tx = x + dx, ty = y + dy;
+            if (tx >= 0 && tx < P_COLS && ty >= 0 && ty < P_ROWS && !grid[ty][tx]) {
+              grid[ty][tx] = "#00eaff";
+              effects.push({ x: tx, y: ty, life: 10, color: "#00eaff" });
+            }
+          });
+        }
+
+        // オレンジ + 赤 = 熔岩反応
+        if ((c === "#ff8800" && n === "#ff0033") || (c === "#ff0033" && n === "#ff8800")) {
+          grid[y][x] = "#ff0033";
+          grid[ny][nx] = "#ff0033";
+          effects.push({ x: x, y: y, life: 20, color: "#ff3300" });
+          effects.push({ x: nx, y: ny, life: 20, color: "#ff3300" });
+        }
+
+        // オレンジ + 黄色 = 小爆発
+        if ((c === "#ff8800" && n === "#ffee00") || (c === "#ffee00" && n === "#ff8800")) {
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+              let tx = x + dx, ty = y + dy;
+              if (tx >= 0 && tx < P_COLS && ty >= 0 && ty < P_ROWS) {
+                effects.push({ x: tx, y: ty, life: 20, color: "#ff8800" });
+                grid[ty][tx] = null;
+              }
+            }
+          }
+        }
+
+        // 紫 + 赤 = 化学炎
+        if ((c === "#ff00ff" && n === "#ff0033") || (c === "#ff0033" && n === "#ff00ff")) {
+          grid[y][x] = "#ff0033";
+          grid[ny][nx] = "#ff0033";
+          effects.push({ x: x, y: y, life: 20, color: "#ff0033" });
+          effects.push({ x: nx, y: ny, life: 20, color: "#ff0033" });
+        }
+
+        // 緑 + 黄色 = 光化学反応
+        if ((c === "#00ff66" && n === "#ffee00") || (c === "#ffee00" && n === "#00ff66")) {
+          grid[y][x] = "#ffee00";
+          grid[ny][nx] = "#ffee00";
+          effects.push({ x: x, y: y, life: 15, color: "#ffee00" });
+          effects.push({ x: nx, y: ny, life: 15, color: "#ffee00" });
+        }
+                  // ===============================
+        // 新物質生成系
+        // ===============================
+
+        // 水 + マグマ → 結晶
+        if ((c === "#00eaff" && n === "#ff0033") || (c === "#ff0033" && n === "#00eaff")) {
+          grid[y][x] = "#8844ff";
+          grid[ny][nx] = "#8844ff";
+          effects.push({ x: x, y: y, life: 25, color: "#8844ff" });
+          effects.push({ x: nx, y: ny, life: 25, color: "#8844ff" });
+        }
+
+        // マグマ + 黄色 → 炭素
+        if ((c === "#ff0033" && n === "#ffee00") || (c === "#ffee00" && n === "#ff0033")) {
+          grid[y][x] = "#222222";
+          grid[ny][nx] = "#222222";
+          effects.push({ x: x, y: y, life: 20, color: "#222222" });
+          effects.push({ x: nx, y: ny, life: 20, color: "#222222" });
+        }
+
+        // 水 + 緑 → 生命原質
+        if ((c === "#00eaff" && n === "#00ff66") || (c === "#00ff66" && n === "#00eaff")) {
+          grid[y][x] = "#00ffaa";
+          grid[ny][nx] = "#00ffaa";
+          effects.push({ x: x, y: y, life: 20, color: "#00ffaa" });
+          effects.push({ x: nx, y: ny, life: 20, color: "#00ffaa" });
+        }
+
+        // 紫 + 赤 → 爆熱体
+        if ((c === "#ff00ff" && n === "#ff0033") || (c === "#ff0033" && n === "#ff00ff")) {
+          grid[y][x] = "#ff4444";
+          grid[ny][nx] = "#ff4444";
+          effects.push({ x: x, y: y, life: 25, color: "#ff4444" });
+          effects.push({ x: nx, y: ny, life: 25, color: "#ff4444" });
+        }
+
+        // 炭素 + マグマ → 爆発
+        if ((c === "#222222" && n === "#ff0033") || (c === "#ff0033" && n === "#222222")) {
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+              let tx = x + dx;
+              let ty = y + dy;
+              if (tx >= 0 && tx < P_COLS && ty >= 0 && ty < P_ROWS) {
+                grid[ty][tx] = null;
+                effects.push({ x: tx, y: ty, life: 30, color: "#ff2200" });
+              }
+            }
+          }
+        }
+          if(c==="#00eaff" && temp[y][x] < 0){
+  grid[y][x] = "#aaffff"; // 氷
+}
+          // 高温で水蒸発
+if(c==="#00eaff" && temp[y][x] > 120){
+  grid[y][x] = null;
+  effects.push({x,y,life:20,color:"#ffffff"});
+}
+
+// 高温で生命焼失
+if(c==="#00ffaa" && temp[y][x] > 150){
+  grid[y][x] = "#222222"; // 炭化
+}
+
+// 低温でマグマ冷却
+if(c==="#ff0033" && temp[y][x] < 60){
+  grid[y][x] = "#8844ff"; // 結晶化
+}
+
+      }
+    }
+  }
+
+  // ===============================
+  // 上部ライン圧迫による沈み（消えない）
+  // ===============================
+  const threshold = Math.floor(P_ROWS / 5);
+  for (let y = 0; y < threshold; y++) {
+    for (let x = 0; x < P_COLS; x++) {
+      if (grid[y][x] && !grid[y + 1]?.[x]) {
+        grid[y + 1][x] = grid[y][x];
+        grid[y][x] = null;
+      }
+    }
+  }
+updateTemperature();
+}
+// 圧力崩壊の代わりに上部が押し下げられる処理
+
 // ===============================
-// ブロック落下（連打防止）
+// 上部ライン圧迫による沈み処理
 // ===============================
-let dropping=false;
+function sinkBlocks(){
+  const threshold = 5; // 上から何ラインで沈み始めるか（SUB単位で調整可能）
+  for(let y=0; y<threshold*SUB; y++){
+    for(let x=0; x<P_COLS; x++){
+      if(grid[y][x]){
+        // 下に空きがあれば沈む
+        if(!grid[y+1]?.[x]){
+          grid[y+1][x] = grid[y][x];
+          grid[y][x] = null;
+        }
+      }
+    }
+  }
+}
+function clearCheck(){
+  let cleared=false;
+
+  for(let by=0;by<ROWS;by++){
+    let streak=0,color=null;
+
+    for(let bx=0;bx<=COLS;bx++){
+      let c=bx<COLS?grid[by*SUB]?.[bx*SUB]:null;
+
+      if(c && c===color){
+        streak++;
+      }else{
+
+        if(streak>=5){
+
+          for(let i=1;i<=streak;i++){
+            for(let sy=0;sy<SUB;sy++){
+              for(let sx=0;sx<SUB;sx++){
+
+                // 🔥 エフェクト追加
+                effects.push({
+                  x:(bx-i)*SUB+sx,
+                  y:by*SUB+sy,
+                  life:20,
+                  color:color
+                });
+
+                grid[by*SUB+sy][(bx-i)*SUB+sx]=null;
+              }
+            }
+          }
+
+          cleared=true;
+        }
+
+        color=c;
+        streak=c?1:0;
+      }
+    }
+  }
+
+  if(cleared){
+    combo++;
+    lines++;
+    score += 500 * combo * combo;
+
+    if(combo>=3){
+      messageText = "COMBO x" + combo + " !!!";
+    }else{
+      messageText = "HORIZONTAL 5";
+    }
+
+    messageTimer = 60;
+    updateUI();
+  }else{
+    combo=0;
+  }
+}
+function updateTemperature(){
+
+  // ===============================
+  // ① 高度による基本気温（気候ゾーン）
+  // ===============================
+  for(let y=0;y<P_ROWS;y++){
+    for(let x=0;x<P_COLS;x++){
+
+      // 上は寒い / 下は暑い
+      let heightRatio = y / P_ROWS;
+
+      // -50 ～ +150 の縦グラデーション
+      let baseTemp = -50 + heightRatio * 200;
+
+      temp[y][x] += (baseTemp - temp[y][x]) * 0.02;
+    }
+  }
+
+  // ===============================
+  // ② 熱源
+  // ===============================
+  for(let y=0;y<P_ROWS;y++){
+    for(let x=0;x<P_COLS;x++){
+      let c = grid[y][x];
+
+      if(c==="#ff0033") temp[y][x]=200;   // マグマ
+      if(c==="#ff4444") temp[y][x]=400;   // 爆熱体
+    }
+  }
+
+  // ===============================
+  // ③ 温度拡散
+  // ===============================
+  let newTemp = JSON.parse(JSON.stringify(temp));
+
+  for(let y=1;y<P_ROWS-1;y++){
+    for(let x=1;x<P_COLS-1;x++){
+      let avg =
+        (temp[y][x] +
+         temp[y+1][x] +
+         temp[y-1][x] +
+         temp[y][x+1] +
+         temp[y][x-1]) / 5;
+
+      newTemp[y][x] = avg * 0.995; // 少し冷却
+    }
+  }
+
+  temp = newTemp;
+}
 function drop(){
-  if(!current || dropping) return;
-  dropping=true;
   current.y++;
   if(collide()){
     current.y--;
@@ -205,36 +885,44 @@ function drop(){
     clearCheck();
     newPiece();
     if(collide()) gameOver=true;
-    saveState();
   }
-  dropping=false;
 }
 
-// ===============================
-// 回転処理
-// ===============================
 function rotate(dir){
-  if(!current) return;
   let m=current.shape;
   let r=m[0].map((_,i)=>m.map(row=>row[i]));
   if(dir>0) r.forEach(row=>row.reverse());
   else r.reverse();
-  let ox=current.x, oy=current.y;
-  current.shape = r;
-  for(let i=-1;i<=1;i++){
-    current.x=ox+i;
-    if(!collide()) return;
-  }
-  current.shape = m;
-  current.x = ox;
-  current.y = oy;
+  let ox=current.x,os=current.shape;
+  current.shape=r;
+  if(collide()){current.shape=os;current.x=ox;}
 }
 
-// ===============================
-// ホールド
-// ===============================
+function updateUI(){
+  document.getElementById("score").textContent=score;
+  document.getElementById("lines").textContent=lines;
+  document.getElementById("combo").textContent=combo;
+}
+
+document.addEventListener("keydown",e=>{
+  if(e.key==="p") paused=!paused;
+  if(e.key==="r"){init();newPiece();gameOver=false;}
+  if(paused||gameOver) return;
+  if(e.key==="ArrowLeft"){current.x--;if(collide())current.x++;}
+  if(e.key==="ArrowRight"){current.x++;if(collide())current.x--;}
+  if(e.key==="ArrowDown") drop();
+  if(e.key==="ArrowUp") rotate(-1);
+  if(e.key==="a") rotate(-1);
+  if(e.key==="d") rotate(1);
+  if(e.key===" "){
+    while(!collide()) current.y++;
+    current.y--;drop();
+  }
+  if(e.key==="c") hold();
+});
+
 function hold(){
-  if(!canHold || !current) return;
+  if(!canHold) return;
   if(!holdPiece){
     holdPiece={shape:JSON.parse(JSON.stringify(current.shape)),color:current.color};
     newPiece();
@@ -248,158 +936,33 @@ function hold(){
   canHold=false;
 }
 
-// ===============================
-// 粒子物理・文明反応（改良水）
-// ===============================
-function updatePhysics(){
-  const updated = new Set();
-  for(let y=P_ROWS-2;y>=0;y--){
-    for(let x=0;x<P_COLS;x++){
-      const key=x+","+y;
-      if(updated.has(key)) continue;
-      let c=grid[y][x];
-      if(!c) continue;
-
-      if(c===COLORS.cyan){ // 水
-        let moved=false;
-        if(!grid[y+1]?.[x]){grid[y+1][x]=c;grid[y][x]=null;updated.add(x+","+(y+1)); moved=true;}
-        if(!moved){
-          let dirs=[-1,1]; dirs.sort(()=>Math.random()-0.5);
-          for(let dir of dirs){
-            if(!grid[y+1]?.[x+dir]){grid[y+1][x+dir]=c;grid[y][x]=null;updated.add((x+dir)+","+(y+1)); break;}
-            else if(!grid[y]?.[x+dir]){grid[y][x+dir]=c;grid[y][x]=null;updated.add((x+dir)+","+y); break;}
-          }
-        }
-        continue;
-      }
-
-      if(!grid[y+1]?.[x]){grid[y+1][x]=c;grid[y][x]=null;updated.add(x+","+(y+1));}
-      else{let dir=Math.random()<0.5?-1:1;if(!grid[y+1]?.[x+dir]){grid[y+1][x+dir]=c;grid[y][x]=null;updated.add((x+dir)+","+(y+1));}}
-    }
-  }
-
-  // 化学反応
-  for(let y=0;y<P_ROWS;y++){
-    for(let x=0;x<P_COLS;x++){
-      let c=grid[y][x];if(!c) continue;
-      let neighbors=[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
-      for(let [nx,ny] of neighbors){
-        if(nx<0||nx>=P_COLS||ny<0||ny>=P_ROWS) continue;
-        let n=grid[ny][nx];if(!n) continue;
-        if((c===COLORS.cyan && n===COLORS.red) || (c===COLORS.red && n===COLORS.cyan)){
-          grid[y][x]=null;grid[ny][nx]=null;effects.push({x:x,y:y,life:20,color:"#ffffff"});effects.push({x:nx,y:ny,life:20,color:"#ffffff"});
-          civilizationScore+=5;
-        }
-        if((c===COLORS.red && n===COLORS.yellow) || (c===COLORS.yellow && n===COLORS.red)){
-          grid[y][x]=null;grid[ny][nx]=null;effects.push({x:x,y:y,life:25,color:"#ff8800"});effects.push({x:nx,y:ny,life:25,color:"#ff8800"});
-          civilizationScore+=3;
-        }
-      }
-    }
-  }
-
-  level = Math.floor(civilizationScore/20)+1;
-}
-
-// ===============================
-// ライン消去
-// ===============================
-function clearCheck(){
-  let cleared=false;
-  for(let by=0;by<ROWS;by++){
-    let streak=0,color=null;
-    for(let bx=0;bx<=COLS;bx++){
-      let c=bx<COLS?grid[by*SUB]?.[bx*SUB]:null;
-      if(c && c===color) streak++;
-      else{
-        if(streak>=5){
-          for(let i=1;i<=streak;i++){
-            for(let sy=0;sy<SUB;sy++){
-              for(let sx=0;sx<SUB;sx++){
-                effects.push({x:(bx-i)*SUB+sx,y:by*SUB+sy,life:20,color:color});
-                grid[by*SUB+sy][(bx-i)*SUB+sx]=null;
-              }
-            }
-          }
-          cleared=true;
-        }
-        color=c;streak=c?1:0;
-      }
-    }
-  }
-
-  if(cleared){combo++;lines++;score+=500*combo*combo;civilizationScore+=2;messageText=combo>=3?"COMBO x"+combo+" !!!":"HORIZONTAL 5";messageTimer=60;updateUI();saveState();}
-  else combo=0;
-}
-
-// ===============================
-// 上部ライン沈下
-// ===============================
-function sinkBlocks(){
-  const threshold=5;
-  for(let y=0;y<threshold*SUB;y++){
-    for(let x=0;x<P_COLS;x++){
-      if(grid[y][x] && !grid[y+1]?.[x]){grid[y+1][x]=grid[y][x];grid[y][x]=null;}
-    }
-  }
-}
-
-// ===============================
-// 操作（キーボード＆タッチ）
-// ===============================
-window.addEventListener("keydown",e=>{
-  if(gameOver) return;
-  if(e.key==="ArrowLeft") {current.x--; if(collide()) current.x++; }
-  if(e.key==="ArrowRight"){current.x++; if(collide()) current.x--; }
-  if(e.key==="ArrowDown") drop();
-  if(e.key==="ArrowUp") rotate(1);
-  if(e.key===" ") {while(!collide()){current.y++;}current.y--; drop();}
-  if(e.key==="c") hold();
-    if(e.key.toLowerCase() === "r") init(); // Rキーでリスタート
-});
-
-// タッチ操作
-let startX, startY;
-canvas.addEventListener("touchstart",e=>{const t=e.touches[0]; startX=t.clientX; startY=t.clientY;});
-canvas.addEventListener("touchend",e=>{
-  const t=e.changedTouches[0];
-  const dx=t.clientX-startX, dy=t.clientY-startY;
-  if(Math.abs(dx)>Math.abs(dy)){
-    if(dx>10){current.x++; if(collide()) current.x--;}
-    else if(dx<-10){current.x--; if(collide()) current.x++;}
-  }else{
-    if(dy>10) drop();
-    else if(dy<-10) rotate(1);
-  }
-});
-// ポーズ切り替え
-function togglePause() {
-  paused = !paused;
-  if(paused) messageText = "PAUSED", messageTimer = 60;
-}
-
-// キーボード操作
-document.addEventListener("keydown", e => {
-  if(e.key === "p" || e.key === "P") togglePause();
-});
-
-// ボタン操作
-document.getElementById("pauseBtn").addEventListener("click", togglePause);
-// ===============================
-// メインループ
-// ===============================
 function loop(){
   if(!paused){
     counter++;
     if(counter>35){drop();counter=0;}
-    updatePhysics();
-    sinkBlocks();
+      updatePhysics();
+sinkBlocks();
     draw();
   }
   requestAnimationFrame(loop);
 }
-document.getElementById("restartBtn").addEventListener("click", init);
+let touchStartX=0;
+
+canvas.addEventListener("touchstart",e=>{
+  touchStartX = e.touches[0].clientX;
+});
+
+canvas.addEventListener("touchmove",e=>{
+  let dx = e.touches[0].clientX - touchStartX;
+  if(dx>30){ current.x++; touchStartX=e.touches[0].clientX; }
+  if(dx<-30){ current.x--; touchStartX=e.touches[0].clientX; }
+});
+
+canvas.addEventListener("touchend",()=>{
+  drop();
+});
 init();
+newPiece();
 loop();
 </script>
 </body>
